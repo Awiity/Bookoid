@@ -1,32 +1,52 @@
 <script lang="ts">
-	import { initFb2File } from '@lingo-reader/fb2-parser';
-	import type { Fb2File, Fb2Spine } from '@lingo-reader/fb2-parser';
+	import { initFb2File, type Fb2File, type Fb2ProcessedChapter, type Fb2Spine } from '@lingo-reader/fb2-parser';
 
-	let chapterHtml = $state('');
-    let page = $state(0);
+	// let page = $state(0);
+	let chapter_number = $state(0);
+	let fb2: Fb2File | null = $state(null);
+	let spine: Fb2Spine | null = $derived.by(() => fb2?.getSpine() ?? null);
+	let curr_chapter: Fb2ProcessedChapter | undefined = $derived.by(() => {
+		if (fb2 && spine) {
+			return fb2.loadChapter(spine[chapter_number].id);
+		}
+        return undefined;
+	});
+    let chapterHtml = $derived.by(() => curr_chapter?.html ?? '')
+
+
+
+	$effect(() => {
+        if(fb2) localStorage.setItem(fb2?.getFileInfo().fileName, chapter_number.toString())
+    });
 
 	function handleFile(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
 		if (file) {
+			if (!localStorage.getItem(file.name)) {
+				localStorage.setItem(file.name, '0');
+			} else {
+				chapter_number = Number(localStorage.getItem(file.name));
+			}
 			void initFb2(file);
 		}
 	}
 
 	async function initFb2(file: File) {
-		const fb2: Fb2File = await initFb2File(file);
-		// Get the spine (chapter list)
-		const spine: Fb2Spine = fb2.getSpine();
-		const curr_chapter = fb2.loadChapter(spine[0].id);
-
-		if (curr_chapter) {
-			chapterHtml += curr_chapter['html'];
+		fb2 = await initFb2File(file);
+		if (fb2) {
+			if (curr_chapter) {
+				chapterHtml += curr_chapter['html'];
+			}
 		}
 	}
 
-    function handleChapterChange(e: Event) {
-        
-    }
+	function handleNextChapter(e: Event) {
+		if(spine && chapter_number < spine.length - 1) chapter_number++
+	}
+	function handlePreviousChapter(e: Event) {
+		if(spine && chapter_number > 0) chapter_number--
+	}
 </script>
 
 <div class="main">
@@ -40,12 +60,12 @@
 		>
 	</div>
 	<div class="reading-container">
-        <button onclick={() => {
-            if (page !== 0) page--;
-        }}>&lt;</button>
-        <button >&gt;</button>
-        {@html chapterHtml}
-    </div>
+		<div class="chapter-control" style="display:flex; justify-content: space-between;">
+			<button onclick={handlePreviousChapter}>&lt;</button>
+			<button onclick={handleNextChapter}>&gt;</button>
+		</div>
+		{@html chapterHtml}
+	</div>
 </div>
 
 <style>
