@@ -1,6 +1,11 @@
 <script lang="ts">
-	import { initFb2File, type Fb2File, type Fb2ProcessedChapter, type Fb2Spine } from '@lingo-reader/fb2-parser';
-
+	import {
+		initFb2File,
+		type Fb2File,
+		type Fb2ProcessedChapter,
+		type Fb2Spine
+	} from '@lingo-reader/fb2-parser';
+	import { fontSize } from '$lib/stores/fontStore.svelte';
 	// let page = $state(0);
 	let chapter_number = $state(0);
 	let fb2: Fb2File | null = $state(null);
@@ -9,17 +14,20 @@
 		if (fb2 && spine) {
 			return fb2.loadChapter(spine[chapter_number].id);
 		}
-        return undefined;
+		return undefined;
 	});
-    let chapterHtml = $derived.by(() => curr_chapter?.html ?? '')
-
-
+	let chapterHtml = $derived.by(() => curr_chapter?.html ?? '');
+	let isSettingsOpen = $state(false);
 
 	$effect(() => {
-        if(fb2) localStorage.setItem(fb2?.getFileInfo().fileName, chapter_number.toString())
-    });
+		if (fb2) localStorage.setItem(fb2?.getFileInfo().fileName, chapter_number.toString());
+	});
 
-	function handleFile(event: Event) {
+	function toggleSettings() {
+		isSettingsOpen = !isSettingsOpen;
+	}
+
+	function handleFile(event: Event): void {
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
 		if (file) {
@@ -32,112 +40,103 @@
 		}
 	}
 
-	async function initFb2(file: File) {
+	async function initFb2(file: File): Promise<void> {
 		fb2 = await initFb2File(file);
 		if (fb2) {
 			if (curr_chapter) {
-				chapterHtml += curr_chapter['html'];
+				chapterHtml = curr_chapter['html'];
 			}
 		}
 	}
 
-	function handleNextChapter(e: Event) {
-		if(spine && chapter_number < spine.length - 1) chapter_number++
+	function handleNextChapter(e: Event): void {
+		if (spine && chapter_number < spine.length - 1) {
+			document
+				.getElementsByClassName('reading-container')[0]
+				?.scrollIntoView({ behavior: 'instant', block: 'start' });
+			chapter_number++;
+		}
 	}
 	function handlePreviousChapter(e: Event) {
-		if(spine && chapter_number > 0) chapter_number--
+		document
+			.getElementsByClassName('reading-container')[0]
+			?.scrollIntoView({ behavior: 'instant', block: 'start' });
+
+		if (spine && chapter_number > 0) chapter_number--;
 	}
 </script>
 
 <div class="main">
-	<h1>Welcome to SvelteKit</h1>
-	<div class="input-container">
-		<label for="book-file">Choose a profile picture:</label>
+	<div class="page-shell">
+		<div class="content-column">
+			<h1>Welcome to Bookoid</h1>
+			<div class="input-container">
+				<label for="book-file">Choose a profile picture:</label>
 
-		<input type="file" id="book-file" name="book" accept=".fb2" onchange={handleFile} />
-		<button type="button" onclick={() => document.getElementById('book-file')?.click()}
-			>Submit</button
-		>
-	</div>
-	<div class="reading-container">
-		<div class="chapter-control" style="display:flex; justify-content: space-between;">
-			<button onclick={handlePreviousChapter}>&lt;</button>
-			<button onclick={handleNextChapter}>&gt;</button>
+				<input type="file" id="book-file" name="book" accept=".fb2" onchange={handleFile} />
+				<button type="button" onclick={() => document.getElementById('book-file')?.click()}
+					>Submit</button
+				>
+			</div>
+			{#if fb2}
+				<div class="reading-container">
+					<div class="chapter-control">
+						<button
+							id="prev-ch"
+							class="ch-btn prev"
+							aria-label="Previous chapter"
+							onclick={handlePreviousChapter}
+						>
+							‹ Previous
+						</button>
+						<!-- ===========================================SETTINGS=========================================== -->
+						<div class="settings-wrapper">
+							<button id="settings-trigger" onclick={toggleSettings}>Settings</button>
+							{#if isSettingsOpen}
+								<div id="settings-menu" class="settings-content">
+									<span>Font Size</span>
+									<div class="button-group">
+										<button onclick={() => fontSize.changeSize(-2)}>A-</button>
+										<span class="size-display">{fontSize.size}px</span>
+										<button onclick={() => fontSize.changeSize(2)}>A+</button>
+									</div>
+								</div>
+							{/if}
+						</div>
+						<button
+							id="next-ch"
+							class="ch-btn next"
+							aria-label="Next chapter"
+							onclick={handleNextChapter}
+						>
+							Next ›
+						</button>
+					</div>
+					<div class="text" style="font-size: {fontSize.size}px;">
+						{@html chapterHtml}
+					</div>
+					<div class="chapter-control-bottom">
+						<button class="ch-btn small prev" onclick={handlePreviousChapter} aria-label="Previous">
+							◀
+						</button>
+						<button class="ch-btn small next" onclick={handleNextChapter} aria-label="Next">
+							▶
+						</button>
+					</div>
+				</div>
+			{:else}
+				<h2 style="display: flex; justify-content: center;">No book is loaded</h2>
+			{/if}
 		</div>
-		{@html chapterHtml}
 	</div>
 </div>
 
 <style>
+	@import './styles.css';
 	:global(body) {
 		margin: 0;
 		background: linear-gradient(135deg, #111827, #1f2937);
 		color: #f9fafb;
-		font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
-	}
-
-	.main {
-		min-height: 100vh;
-		padding: 2rem;
-		box-sizing: border-box;
-		background: linear-gradient(135deg, #333333, #000000);
-		color: #f9fafb;
-	}
-
-	h1 {
-		margin: 0 0 1rem;
-		font-size: 2rem;
-	}
-
-	.input-container {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-		align-items: center;
-		margin-bottom: 1.5rem;
-		padding: 1rem;
-		background: rgba(255, 255, 255, 0.08);
-		border: 1px solid rgba(255, 255, 255, 0.12);
-		border-radius: 0.75rem;
-		backdrop-filter: blur(8px);
-	}
-
-	input[type='file'] {
-		color: #f9fafb;
-	}
-
-	button {
-		padding: 0.6rem 1rem;
-		border: none;
-		border-radius: 0.5rem;
-		background: #3b82f6;
-		color: white;
-		cursor: pointer;
-		transition: background 0.2s ease;
-	}
-
-	button:hover {
-		background: #2563eb;
-	}
-
-	.reading-container {
-		max-width: 900px;
-		margin: 0 auto;
-		padding: 1.5rem;
-		background: #444444;
-		color: white;
-		border-radius: 1rem;
-		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-		line-height: 1.7;
-	}
-
-	.reading-container :global(p) {
-		margin: 0 0 1rem;
-	}
-
-	.reading-container :global(h2),
-	.reading-container :global(h3) {
-		margin-top: 1.5rem;
-		margin-bottom: 0.75rem;
+		font-family: Georgia, 'Palatino', Times, serif;
 	}
 </style>
